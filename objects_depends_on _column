@@ -1,0 +1,29 @@
+DECLARE 
+	@ObjectName AS VARCHAR(100) = ''	--E.g : schema.objecname 
+	,@ColumnName AS VARCHAR(100) = ''	
+SELECT 
+	CONCAT(S.[name],'.',O.[name]) AS ObjectName
+	,O.[type_desc] AS ObjectType
+	--,dp.is_selected
+	,IIF(dp.is_select_all=1,dp.is_select_all,dp.is_selected) AS is_selected
+	,dp.is_updated
+	,dp.is_select_all 
+FROM 
+	sys.sql_dependencies dp
+	JOIN sys.objects AS O
+		ON O.[object_id] = dp.[object_id]
+	JOIN sys.schemas AS S
+		ON O.[schema_id] = S.[schema_id]
+	JOIN sys.objects AS OrgO
+		ON dp.referenced_major_id = OrgO.[object_id]
+	JOIN sys.schemas AS OrgS
+		ON OrgO.[schema_id] = OrgS.[schema_id]
+	JOIN sys.columns AS OrgC
+		ON OrgC.column_id = dp.referenced_minor_id
+		AND OrgC.[object_id] = dp.referenced_major_id 
+WHERE 1=1
+	AND CONCAT(OrgS.[name],'.',OrgO.[name]) = @ObjectName
+	AND OrgC.[name] = @ColumnName
+ORDER BY
+	O.[type_desc]
+	,CONCAT(S.[name],'.',O.[name])
