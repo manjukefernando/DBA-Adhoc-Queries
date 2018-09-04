@@ -1,0 +1,45 @@
+
+SELECT DISTINCT
+	(CASE dp.[type]
+		WHEN 'U' THEN 1
+		WHEN 'V' THEN 2
+		WHEN 'F' THEN 3
+		WHEN 'P' THEN 4
+		ELSE 99
+	END) AS SortKey
+	,dp.[type_desc] ObjectType
+	,CONCAT(sch.[name],'.',dp.[name]) AS ObjectName
+	
+	,dep.is_selected
+	,dep.is_updated
+	,dep.is_select_all
+FROM
+	sys.objects AS src
+	OUTER APPLY(
+		SELECT 
+			ODep.referenced_major_id
+			,MAX(CAST(ODep.is_selected AS TINYINT)) AS is_selected
+			,MAX(CAST(ODep.is_updated AS TINYINT)) AS is_updated
+			,MAX(CAST(ODep.is_select_all AS TINYINT)) AS is_select_all
+		FROM 
+			sys.sql_dependencies AS ODep WHERE ODep.[object_id] = src.[object_id]
+		GROUP BY
+			ODep.referenced_major_id
+	) AS dep
+	OUTER APPLY(
+		SELECT * FROM sys.objects AS S WHERE S.[object_id] = dep.referenced_major_id
+	) AS dp
+	JOIN sys.schemas AS sch
+		ON dp.[schema_id] = sch.[schema_id]
+WHERE
+	CONCAT(sch.[name],'.',src.[name]) = '' --E.g: schema.objecname
+ORDER BY
+	(CASE dp.[type]
+		WHEN 'U' THEN 1
+		WHEN 'V' THEN 2
+		WHEN 'F' THEN 3
+		WHEN 'P' THEN 4
+		ELSE 99
+	END)
+
+GO
