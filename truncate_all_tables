@@ -1,0 +1,22 @@
+;With TableList as (
+	SELECT fk.name AS Foreign_Key,
+	SCHEMA_NAME(fk.schema_id) AS Schema_Name,
+	OBJECT_NAME(fk.parent_object_id) AS Table_Name,
+	SCHEMA_NAME(o.schema_id) Referenced_Schema_Name,
+	OBJECT_NAME (fk.referenced_object_id) AS Referenced_Table_Name
+	FROM sys.foreign_keys fk
+	INNER JOIN sys.objects o ON fk.referenced_object_id = o.object_id
+)
+
+
+SELECT 
+	CONCAT('TRUNCATE TABLE ',T.TABLE_SCHEMA,'.[',T.TABLE_NAME,']') AS SQLSYNTAX
+	,*
+FROM
+	INFORMATION_SCHEMA.TABLES AS T
+	left join TableList as Src
+		on T.TABLE_SCHEMA = Src.Referenced_Schema_Name
+		and T.TABLE_NAME = Src.Referenced_Table_Name
+WHERE 1=1
+	AND T.TABLE_TYPE = 'BASE TABLE'
+	AND Src.Foreign_Key IS NULL
