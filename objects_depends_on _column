@@ -1,3 +1,68 @@
+--== New Version : 24.06.2019 ==--
+
+DECLARE 
+	@ObjectSearching AS VARCHAR(MAX) = 'dbo.CYL_HOLDINGS'		-- E.g: 'dbo.TableName'
+	,@Column AS VARCHAR(MAX)	 = 'CUST_CYL_QTY'				-- E.g:	'ColumnName'
+	,@ReferenceObjectName AS VARCHAR(MAX) = ''	-- E.g: 'dbo.StoredProcedure' -- Optional
+
+SELECT DISTINCT
+	CONCAT(src.referencing_schema_name,'.',Src.referencing_entity_name) AS ObjectName
+	,Obj.[type_desc] AS ObjectType
+	,ObjR.refer_without_schema
+	,ObjR.RefObjectName
+	,ObjR.ColumnName
+	,ObjR.is_selected
+	,ObjR.is_updated
+	,ObjR.is_select_all
+	,ObjR.is_insert_all
+FROM 
+	sys.dm_sql_referencing_entities(@ObjectSearching,'OBJECT') AS Src
+	OUTER APPLY (
+		SELECT *
+        FROM
+			sys.objects AS O
+		WHERE
+			o.[object_id] = src.referencing_id
+	) obj
+	OUTER APPLY (
+		SELECT 
+			O2.[object_id]
+        FROM
+			sys.objects AS O2
+			JOIN sys.schemas AS S
+				ON S.schema_id = O2.schema_id
+		WHERE
+			CONCAT(S.name,'.',O2.name) = @ObjectSearching
+			
+	) AS ObjP
+	OUTER APPLY (
+		SELECT
+			MAX(IIF(ISNULL(Ref.referenced_schema_name,'') = '','X','')) AS refer_without_schema
+			,CONCAT(ISNULL(Ref.referenced_schema_name,'dbo'),'.',Ref.referenced_entity_name) AS RefObjectName
+			,Ref.referenced_minor_name AS ColumnName
+			,MAX(CAST(Ref.is_selected AS TINYINT)) AS is_selected
+			,MAX(CAST(Ref.is_updated AS TINYINT)) AS is_updated
+			,MAX(CAST(Ref.is_select_all AS TINYINT)) AS is_select_all
+			,MAX(CAST(Ref.is_insert_all AS TINYINT)) AS is_insert_all
+		
+		FROM
+			sys.dm_sql_referenced_entities(CONCAT(src.referencing_schema_name,'.',Src.referencing_entity_name),'OBJECT') AS Ref
+		WHERE 1=1
+			AND (@Column = '' OR (ISNULL(Ref.referenced_minor_name,'') = @Column))
+			
+		GROUP BY	
+			Ref.referenced_minor_name
+			,CONCAT(ISNULL(Ref.referenced_schema_name,'dbo'),'.',Ref.referenced_entity_name)
+	) AS ObjR
+
+WHERE
+	ObjR.RefObjectName = @ObjectSearching
+	AND ObjR.ColumnName IS NOT NULL
+	AND (@ReferenceObjectName = '' OR (CONCAT(src.referencing_schema_name,'.',Src.referencing_entity_name) = @ReferenceObjectName))
+
+-------------------------------------------------------------------------------------------------------
+
+/*
 DECLARE 
 	@ObjectName AS VARCHAR(100) = ''	--E.g : schema.objecname 
 	,@ColumnName AS VARCHAR(100) = ''	
@@ -27,3 +92,4 @@ WHERE 1=1
 ORDER BY
 	O.[type_desc]
 	,CONCAT(S.[name],'.',O.[name])
+*/
