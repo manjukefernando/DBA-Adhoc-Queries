@@ -1,0 +1,68 @@
+
+/*
+SELECT 
+	D.[name] AS DatabaseName
+	,S.[name] AS LogFile
+	,S.*
+FROM 
+	sys.sysaltfiles AS S
+	JOIN sys.databases AS D
+		ON S.[dbid] = D.database_id
+WHERE
+	1=1
+	AND S.fileid = 2
+	AND D.[name] NOT IN (
+		'master'
+		,'tempdb'
+		,'model'
+		,'msdb'
+	)
+	AND D.recovery_model_desc = 'SIMPLE'
+
+	--1900672	268435456
+*/
+
+DECLARE 
+	@DatabaseName AS VARCHAR(MAX)
+	,@LogFile AS VARCHAR(MAX)
+	,@Sql	AS NVARCHAR(MAX)
+
+DECLARE TruncateLog INSENSITIVE CURSOR FOR
+SELECT 
+	D.[name] AS DatabaseName
+	,S.[name] AS LogFile
+FROM 
+	sys.sysaltfiles AS S
+	JOIN sys.databases AS D
+		ON S.[dbid] = D.database_id
+WHERE
+	1=1
+	AND S.fileid = 2
+	AND D.[name] NOT IN (
+		'master'
+		,'tempdb'
+		,'model'
+		,'msdb'
+	)
+	AND D.recovery_model_desc = 'SIMPLE'
+	AND D.state_desc = 'ONLINE'
+
+OPEN TruncateLog
+FETCH NEXT FROM TruncateLog INTO @DatabaseName,@LogFile
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	PRINT CONCAT('Shrinkin log for database ',@DatabaseName,' - Log : ',@LogFile)
+	SET @Sql = CONCAT(
+		'USE [',@DatabaseName,']; '
+		,'DBCC SHRINKFILE(''',@LogFile,''',128);'
+	)
+
+	EXEC sys.sp_executesql @Sql
+
+	
+	FETCH NEXT FROM TruncateLog INTO @DatabaseName,@LogFile    
+END
+
+CLOSE TruncateLog
+DEALLOCATE TruncateLog
