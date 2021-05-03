@@ -1,0 +1,59 @@
+
+DECLARE
+	@CurrentSize AS NUMERIC (24,9)
+	,@FreeSpace AS NUMERIC (24,9)
+	,@TargetSize AS INT
+	,@FileName	AS sysname
+	,@BlockSize AS NUMERIC (24,9) = 10240
+	,@Iterations AS INT
+	,@Terminate AS BIT = 0
+
+
+
+	SELECT 
+		@FileName = Src.[name], 
+		@CurrentSize = Src.size/128.0,  
+		@FreeSpace = (Src.size/128.0 - CAST(FILEPROPERTY(Src.[name], 'SpaceUsed') AS INT)/128.0)
+	FROM 
+		sys.database_files AS Src
+	WHERE 
+		Src.[type] IN (0)
+
+	SET @Iterations = CEILING(@FreeSpace/@BlockSize)
+
+	IF @FreeSpace > @BlockSize
+		SET @TargetSize = @CurrentSize - @BlockSize
+	ELSE 
+		SET @TargetSize = @CurrentSize - @FreeSpace
+
+WHILE(@Terminate = 0 AND @Iterations > 0)
+BEGIN
+	PRINT CONCAT('Shrinking databases ',DB_NAME(), ' data file : ',@FileName,'| Current Size - ',@CurrentSize ,' | Target size : ',@TargetSize,' | Available iterations : ',@Iterations)
+	
+	DBCC SHRINKFILE (@FileName,@TargetSize)
+
+	SELECT 
+		@CurrentSize = Src.size/128.0,  
+		@FreeSpace = (Src.size/128.0 - CAST(FILEPROPERTY(Src.[name], 'SpaceUsed') AS INT)/128.0)
+	FROM 
+		sys.database_files AS Src
+	WHERE 
+		Src.[type] IN (0)
+
+	IF @FreeSpace = 0.00 BREAK;
+
+	IF @FreeSpace > @BlockSize
+		SET @TargetSize = @CurrentSize - @BlockSize
+	ELSE 
+		SET @TargetSize = @CurrentSize - @FreeSpace
+
+
+	SET @Iterations -= 1
+
+	CONTINUE;
+
+
+END
+
+PRINT 'Shrink operation completed !'
+
